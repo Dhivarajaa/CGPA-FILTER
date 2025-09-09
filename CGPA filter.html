@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grade Counter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Orbitron', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      color: #e0f2fe;
+      overflow: hidden;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(20px);
+      max-width: 800px;
+      padding: 40px 50px;
+      border-radius: 20px;
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.15);
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    h2 {
+      font-size: 2.5em;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #f0f9ff;
+    }
+    label[for="pdfInput"] {
+      display: inline-block;
+      padding: 15px 35px;
+      border-radius: 30px;
+      background: linear-gradient(145deg, #06b6d4, #0ea5e9);
+      color: white;
+      font-weight: bold;
+      font-size: 1.1em;
+      box-shadow: 0 0 15px #0ea5e9;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    label[for="pdfInput"]:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px #22d3ee;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      border-left: 5px solid #0ea5e9;
+      padding: 20px;
+      font-size: 16px;
+      color: #e2e8f0;
+      box-shadow: 0 8px 20px rgba(14, 165, 233, 0.2);
+      transition: transform 0.3s ease;
+    }
+    .card:hover { transform: scale(1.06); }
+    .card.pass { border-left: 5px solid #10b981; }
+    .card.fail { border-left: 5px solid #ef4444; }
+    #studentInfo {
+      margin-top: 20px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 17px;
+      color: #bae6fd;
+    }
+    .gradesWrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .summary {
+      margin-top: 30px;
+      font-size: 18px;
+      color: #e0f2fe;
+    }
+    .loader {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top: 4px solid #0ea5e9;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Upload PDF to Analyze Grades</h2>
+    <label for="pdfInput">Choose PDF File</label>
+    <input type="file" id="pdfInput" accept="application/pdf" style="display:none;" />
+    <div id="loader" style="display:none;" class="loader"></div>
+    <div id="studentInfo">
+      👤 <strong>Name:</strong> <span id="studentName">--</span><br>
+      🆔 <strong>Reg. No:</strong> <span id="studentReg">--</span>
+    </div>
+    <div class="gradesWrapper" id="gradeCards"></div>
+    <div class="summary" id="summaryText"></div>
+  </div>
+
+  <script>
+    const pdfInput = document.getElementById('pdfInput');
+    const loader = document.getElementById('loader');
+    const studentNameEl = document.getElementById('studentName');
+    const studentRegEl = document.getElementById('studentReg');
+    const gradeCards = document.getElementById('gradeCards');
+    const summaryText = document.getElementById('summaryText');
+
+    pdfInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file || file.type !== 'application/pdf') return alert('Please upload a valid PDF');
+      loader.style.display = 'block';
+      const fileReader = new FileReader();
+      fileReader.onload = async function () {
+        try {
+          const typedArray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items.map(item => item.str).join(' ');
+            fullText += strings + '\n';
+          }
+          loader.style.display = 'none';
+          processText(fullText);
+        } catch (err) {
+          loader.style.display = 'none';
+          alert('Error reading PDF: ' + err.message);
+        }
+      };
+      fileReader.readAsArrayBuffer(file);
+    });
+
+    function processText(text) {
+      const nameMatch = text.match(/(?:Name|Student Name|Candidate Name|Student)\s*[:\-]?\s*([A-Za-z\s]+)/i);
+      const regMatch = text.match(/(?:Reg(?:ister)?(?:\.|istration)?(?: No)?(?: Number)?)\s*[:\-]?\s*([\dA-Z]+)/i);
+      studentNameEl.textContent = nameMatch ? nameMatch[1].trim() : "--";
+      studentRegEl.textContent = regMatch ? regMatch[1].trim() : "--";
+
+      const grades = text.match(/\b(O|A\+|A|B\+|B|C|U)\b/g);
+      const points = { O:10, "A+":9, A:8, "B+":7, B:6, C:5, U:0 };
+      const counts = { O:0, "A+":0, A:0, "B+":0, B:0, C:0, U:0 };
+
+      if (!grades) {
+        gradeCards.innerHTML = "<p>No grades found.</p>";
+        summaryText.innerHTML = "";
+        return;
+      }
+
+      let totalSubjects = grades.length;
+      let failed = grades.filter(g => g === "U").length;
+      let passed = totalSubjects - failed;
+      let totalPoints = grades.reduce((sum, g) => sum + (points[g] || 0), 0);
+      let cgpa = (passed > 0) ? (totalPoints / totalSubjects).toFixed(2) : "0.00";
+
+      grades.forEach(g => { if (counts.hasOwnProperty(g)) counts[g]++; });
+      const label = {
+        'O': '🏅 O (PASS)', 'A+': '🥇 A+ (PASS)', 'A': '🥈 A (PASS)',
+        'B+': '🥉 B+ (PASS)', 'B': '🔵 B (PASS)', 'C': '🟡 C (PASS)', 'U': '❌ U (FAIL)'
+      };
+
+      gradeCards.innerHTML = '';
+      for (const [grade, count] of Object.entries(counts)) {
+        const status = grade === 'U' ? 'fail' : 'pass';
+        const div = document.createElement('div');
+        div.className = `card ${status}`;
+        div.innerHTML = `<strong>${label[grade]}</strong><br>Count: ${count}`;
+        gradeCards.appendChild(div);
+      }
+
+      summaryText.innerHTML = `
+        📘 <strong>Total Subjects:</strong> ${totalSubjects}<br>
+        ✅ <strong>Passed:</strong> ${passed}<br>
+        ❌ <strong>Failed:</strong> ${failed}<br>
+        🎓 <strong>CGPA:</strong> ${cgpa}
+      `;
+    }
+  
+  
+</script>
+</body>
+</html>
